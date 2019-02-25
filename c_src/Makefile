@@ -20,7 +20,7 @@ else ifeq ($(UNAME_SYS), Linux)
 	CFLAGS ?= -O2 -finline-functions -Wall -Wmissing-prototypes
 endif
 
-CFLAGS += -std=c99 -D_GNU_SOURCE -fPIC -I $(ERTS_INCLUDE_DIR)
+CFLAGS += -std=c99 -fPIC -I $(ERTS_INCLUDE_DIR)
 
 LDLIBS +=
 LDFLAGS += -shared
