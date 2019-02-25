@@ -51,51 +51,64 @@ static ERL_NIF_TERM posix_error_to_tuple(ErlNifEnv *env, int posix_errno) {
     return enif_make_tuple2(env, am_error, error);
 }
 
-static uint8_t cast_spi_mode(unsigned int value) {
+static bool cast_spi_mode(unsigned int value, uint8_t* mode) {
     switch (value) {
         case 0:
-        default:
-            return SPI_MODE_0;
+            *mode = SPI_MODE_0;
+            return true;
         case 1:
-            return SPI_MODE_1;
+            *mode = SPI_MODE_1;
+            return true;
         case 2:
-            return SPI_MODE_2;
+            *mode = SPI_MODE_2;
+            return true;
         case 3:
-            return SPI_MODE_3;
+            *mode = SPI_MODE_3;
+            return true;
+        default:
+            return false;
     }
 }
 
-static int set_spi_mode(int fd, unsigned int value) {
-    uint8_t mode = cast_spi_mode(value);
-    return ioctl(fd, SPI_IOC_WR_MODE, &mode);
+static bool set_spi_mode(int fd, unsigned int value) {
+    uint8_t mode;
+    return cast_spi_mode(value, &mode)
+        && ioctl(fd, SPI_IOC_WR_MODE, &mode) == 0;
 }
 
-static uint8_t cast_spi_bits_per_word(unsigned int value) {
+static bool cast_spi_bits_per_word(unsigned int value, uint8_t* bits_per_word) {
     switch (value) {
         case 8:
-        default:
-            return 8;
+            *bits_per_word = 8;
+            return true;
         case 16:
-            return 16;
+            *bits_per_word = 16;
+            return true;
+        default:
+            return false;
     }
 }
 
-static int set_spi_bits_per_word(int fd, unsigned int value) {
-    uint8_t bits_per_word = cast_spi_bits_per_word(value);
-    return ioctl(fd, SPI_IOC_WR_BITS_PER_WORD, &bits_per_word);
+static bool set_spi_bits_per_word(int fd, unsigned int value) {
+    uint8_t bits_per_word;
+    return cast_spi_bits_per_word(value, &bits_per_word)
+        && ioctl(fd, SPI_IOC_WR_BITS_PER_WORD, &bits_per_word) == 0;
 }
 
-static uint32_t cast_spi_speed(unsigned int value) {
-    return (uint32_t) value;
+static bool cast_spi_speed(unsigned int value, uint32_t* speed) {
+    *speed = (uint32_t) value;
+    return true;
 }
 
-static int set_spi_speed(int fd, unsigned int value) {
-    uint32_t speed = cast_spi_speed(value);
-    return ioctl(fd, SPI_IOC_WR_MAX_SPEED_HZ, &speed);
+static bool set_spi_speed(int fd, unsigned int value) {
+    uint32_t speed;
+    return cast_spi_speed(value, &speed)
+        && ioctl(fd, SPI_IOC_WR_MAX_SPEED_HZ, &speed) == 0;
 }
 
-static uint32_t cast_spi_delay(unsigned int value) {
-    return (uint32_t) value;
+static bool cast_spi_delay(unsigned int value, uint32_t* delay) {
+    *delay = (uint32_t) value;
+    return true;
 }
 
 
@@ -120,7 +133,7 @@ static ERL_NIF_TERM open_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]
     ERL_NIF_TERM option;
     if (enif_get_map_value(env, options, am_mode, &option)) { // mode
         unsigned int mode;
-        if (!enif_get_uint(env, option, &mode) || set_spi_mode(fd, mode) < 0) {
+        if (!enif_get_uint(env, option, &mode) || !set_spi_mode(fd, mode)) {
             close(fd);
             return enif_make_badarg(env);
         }
@@ -128,7 +141,7 @@ static ERL_NIF_TERM open_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]
 
     if (enif_get_map_value(env, options, am_speed_hz, &option)) { // speed_hz
         unsigned int speed_hz;
-        if (!enif_get_uint(env, option, &speed_hz) || set_spi_speed(fd, speed_hz) < 0) {
+        if (!enif_get_uint(env, option, &speed_hz) || !set_spi_speed(fd, speed_hz)) {
             close(fd);
             return enif_make_badarg(env);
         }
@@ -136,7 +149,7 @@ static ERL_NIF_TERM open_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]
 
     if (enif_get_map_value(env, options, am_bits_per_word, &option)) { // bits_per_word
         unsigned int bits_per_word;
-        if (!enif_get_uint(env, option, &bits_per_word) || set_spi_bits_per_word(fd, bits_per_word) < 0) {
+        if (!enif_get_uint(env, option, &bits_per_word) || !set_spi_bits_per_word(fd, bits_per_word)) {
             close(fd);
             return enif_make_badarg(env);
         }
@@ -205,27 +218,30 @@ static ERL_NIF_TERM transfer_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM ar
                 }
 
                 if (enif_get_map_value(env, fields[1], am_speed_hz, &option)) { // speed_hz
-                    unsigned int speed_hz;
-                    if (enif_get_uint(env, option, &speed_hz)) {
-                        transfer_buffer[index].speed_hz = cast_spi_speed(speed_hz);
+                    unsigned int value;
+                    uint32_t speed_hz;
+                    if (enif_get_uint(env, option, &value) && cast_spi_speed(value, &speed_hz)) {
+                        transfer_buffer[index].speed_hz = speed_hz;
                     } else {
                         return enif_make_badarg(env);
                     }
                 }
 
                 if (enif_get_map_value(env, fields[1], am_delay_usecs, &option)) { // delay_usecs
-                    unsigned int delay_usecs;
-                    if (enif_get_uint(env, option, &delay_usecs)) {
-                        transfer_buffer[index].delay_usecs = cast_spi_delay(delay_usecs);
+                    unsigned int value;
+                    uint32_t delay_usecs;
+                    if (enif_get_uint(env, option, &value) && cast_spi_delay(value, &delay_usecs)) {
+                        transfer_buffer[index].delay_usecs = delay_usecs;
                     } else {
                         return enif_make_badarg(env);
                     }
                 }
 
                 if (enif_get_map_value(env, fields[1], am_bits_per_word, &option)) { // bits_per_word
-                    unsigned int bits_per_word;
-                    if (enif_get_uint(env, option, &bits_per_word)) {
-                        transfer_buffer[index].bits_per_word = cast_spi_bits_per_word(bits_per_word);
+                    unsigned int value;
+                    uint8_t bits_per_word;
+                    if (enif_get_uint(env, option, &value) && cast_spi_bits_per_word(value, &bits_per_word)) {
+                        transfer_buffer[index].bits_per_word = bits_per_word;
                     } else {
                         return enif_make_badarg(env);
                     }
