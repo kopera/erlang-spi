@@ -15,35 +15,33 @@
 
 -on_load(init/0).
 
--type device() :: reference().
+-opaque device() :: reference().
 
 
--spec open(Filename) -> {ok, device()} | {error, term()} when
-    Filename :: string() | binary().
-open(Filename) ->
-    open(Filename, #{}).
+-spec open(Path) -> {ok, device()} | {error, term()} when
+    Path :: string() | binary().
+open(Path) ->
+    open(Path, #{}).
 
 
--spec open(Filename, Options) -> {ok, device()} | {error, term()} when
-    Filename :: string() | binary(),
+-spec open(Path, Options) -> {ok, device()} | {error, term()} when
+    Path :: string() | binary(),
     Options :: #{
         mode => 0 | 1 | 2 | 3,
         speed_hz => pos_integer(),
         bits_per_word => 8 | 16
     }.
-open(Filename, Options) when is_binary(Filename) ->
-    open(unicode:characters_to_list(Filename), Options);
-
-open(Filename, Options) when is_list(Filename) ->
-    open_nif(Filename, maps:merge(#{
+open(Path, Options) ->
+    open_nif(unicode:characters_to_list(Path), maps:merge(#{
         mode => 0,
         speed_hz => 1000,
         bits_per_word => 8
     }, Options)).
 
+
 %% nif
 open_nif(_Filename, _Options) ->
-    {error, unsupported}.
+    {error, nif_not_loaded}.
 
 
 -spec close(device()) -> ok | {error, term()}.
@@ -52,7 +50,7 @@ close(Device) ->
 
 %% nif
 close_nif(_Device) ->
-    {error, unsupported}.
+    {error, nif_not_loaded}.
 
 
 -spec transfer(device(), [transfer()]) -> {ok, [binary()]} | {error, term()}.
@@ -68,7 +66,7 @@ transfer(Device, Transfers) ->
 
 %% nif
 transfer_nif(_Device, _Transfers) ->
-    {error, unsupported}.
+    {error, nif_not_loaded}.
 
 
 -spec write(device(), binary()) -> ok | {error, term()}.

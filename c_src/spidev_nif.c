@@ -46,12 +46,14 @@ static char* posix_error_to_string(int error) {
     }
 }
 
-static ERL_NIF_TERM posix_error_to_tuple(ErlNifEnv *env, int posix_errno) {
+static ERL_NIF_TERM posix_error_to_tuple(ErlNifEnv *env, int posix_errno)
+{
     ERL_NIF_TERM error = enif_make_atom(env, posix_error_to_string(posix_errno));
     return enif_make_tuple2(env, am_error, error);
 }
 
-static bool cast_spi_mode(unsigned int value, uint8_t* mode) {
+static bool cast_spi_mode(unsigned int value, uint8_t* mode)
+{
     switch (value) {
         case 0:
             *mode = SPI_MODE_0;
@@ -70,13 +72,15 @@ static bool cast_spi_mode(unsigned int value, uint8_t* mode) {
     }
 }
 
-static bool set_spi_mode(int fd, unsigned int value) {
+static bool set_spi_mode(int fd, unsigned int value)
+{
     uint8_t mode;
     return cast_spi_mode(value, &mode)
         && ioctl(fd, SPI_IOC_WR_MODE, &mode) == 0;
 }
 
-static bool cast_spi_bits_per_word(unsigned int value, uint8_t* bits_per_word) {
+static bool cast_spi_bits_per_word(unsigned int value, uint8_t* bits_per_word)
+{
     switch (value) {
         case 8:
             *bits_per_word = 8;
@@ -89,30 +93,35 @@ static bool cast_spi_bits_per_word(unsigned int value, uint8_t* bits_per_word) {
     }
 }
 
-static bool set_spi_bits_per_word(int fd, unsigned int value) {
+static bool set_spi_bits_per_word(int fd, unsigned int value)
+{
     uint8_t bits_per_word;
     return cast_spi_bits_per_word(value, &bits_per_word)
         && ioctl(fd, SPI_IOC_WR_BITS_PER_WORD, &bits_per_word) == 0;
 }
 
-static bool cast_spi_speed(unsigned int value, uint32_t* speed) {
+static bool cast_spi_speed(unsigned int value, uint32_t* speed)
+{
     *speed = (uint32_t) value;
     return true;
 }
 
-static bool set_spi_speed(int fd, unsigned int value) {
+static bool set_spi_speed(int fd, unsigned int value)
+{
     uint32_t speed;
     return cast_spi_speed(value, &speed)
         && ioctl(fd, SPI_IOC_WR_MAX_SPEED_HZ, &speed) == 0;
 }
 
-static bool cast_spi_delay(unsigned int value, uint32_t* delay) {
+static bool cast_spi_delay(unsigned int value, uint32_t* delay)
+{
     *delay = (uint32_t) value;
     return true;
 }
 
 
-static ERL_NIF_TERM open_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+static ERL_NIF_TERM open_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+{
     char filename[4096];
 
     if (enif_get_string(env, argv[0], filename, sizeof(filename), ERL_NIF_LATIN1) <= 0
@@ -158,27 +167,29 @@ static ERL_NIF_TERM open_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]
     ErlNifPid owner;
     enif_self(env, &owner);
 
-    spidev_data_t* d = (spidev_data_t*) enif_alloc_resource(spidev_resource_type, sizeof(spidev_data_t));
-    d->fd = fd;
-    d->open = true;
-    d->owner = owner;
+    spidev_data_t* spidev = (spidev_data_t*) enif_alloc_resource(spidev_resource_type, sizeof(spidev_data_t));
+    spidev->fd = fd;
+    spidev->open = true;
+    spidev->owner = owner;
 
-    if (enif_monitor_process(env, d, &owner, &d->owner_monitor)) {
+    if (enif_monitor_process(env, spidev, &owner, &spidev->owner_monitor)) {
+        enif_release_resource(spidev);
         close(fd);
 
         return posix_error_to_tuple(env, EINVAL);
     }
 
-    ERL_NIF_TERM result = enif_make_resource(env, d);
-    enif_release_resource(d);
+    ERL_NIF_TERM result = enif_make_resource(env, spidev);
+    enif_release_resource(spidev);
 
     return enif_make_tuple2(env, am_ok, result);
 }
 
-static ERL_NIF_TERM transfer_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
-    spidev_data_t* d;
+static ERL_NIF_TERM transfer_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+{
+    spidev_data_t* spidev;
 
-    if (!enif_get_resource(env, argv[0], spidev_resource_type, (void**) &d)
+    if (!enif_get_resource(env, argv[0], spidev_resource_type, (void**) &spidev)
             || !enif_is_list(env, argv[1])) {
         return enif_make_badarg(env);
     }
@@ -267,7 +278,7 @@ static ERL_NIF_TERM transfer_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM ar
         transfer_list = rest;
     }
 
-    if (ioctl(d->fd, SPI_IOC_MESSAGE(transfer_list_length), transfer_buffer) < 0) {
+    if (ioctl(spidev->fd, SPI_IOC_MESSAGE(transfer_list_length), transfer_buffer) < 0) {
         return posix_error_to_tuple(env, errno);
     }
 
@@ -276,15 +287,16 @@ static ERL_NIF_TERM transfer_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM ar
     return enif_make_tuple2(env, am_ok, result);
 }
 
-static ERL_NIF_TERM close_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
-    spidev_data_t* d;
+static ERL_NIF_TERM close_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+{
+    spidev_data_t* spidev;
 
-    if (!enif_get_resource(env, argv[0], spidev_resource_type, (void**) &d)) {
+    if (!enif_get_resource(env, argv[0], spidev_resource_type, (void**) &spidev)) {
         return enif_make_badarg(env);
     }
 
-    if (d->open) {
-        if (enif_select(env, d->fd, ERL_NIF_SELECT_STOP, d, NULL, am_undefined) >= 0) {
+    if (spidev->open) {
+        if (enif_select(env, spidev->fd, ERL_NIF_SELECT_STOP, spidev, NULL, am_undefined) >= 0) {
             return am_ok;
         }
     }
@@ -295,25 +307,25 @@ static ERL_NIF_TERM close_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[
 static ErlNifFunc nif_funcs[] = {
     {"open_nif", 2, open_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
     {"transfer_nif", 2, transfer_nif, ERL_NIF_DIRTY_JOB_IO_BOUND},
-    {"close_nif", 1, close_nif, ERL_NIF_DIRTY_JOB_IO_BOUND}
+    {"close_nif", 1, close_nif}
 };
 
 static void on_stop(ErlNifEnv* env, void* obj, int fd, int is_direct_call)
 {
-    spidev_data_t* d = (spidev_data_t*) obj;
+    spidev_data_t* spidev = (spidev_data_t*) obj;
 
-    if (d->open) {
-        close(d->fd);
-        d->open = false;
+    if (spidev->open) {
+        close(spidev->fd);
+        spidev->open = false;
     }
 }
 
 static void on_owner_down(ErlNifEnv* env, void* obj, ErlNifPid* pid, ErlNifMonitor* monitor)
 {
-    spidev_data_t* d = (spidev_data_t*) obj;
+    spidev_data_t* spidev = (spidev_data_t*) obj;
 
-    if (d->open) {
-        enif_select(env, d->fd, ERL_NIF_SELECT_STOP, d, NULL, am_undefined);
+    if (spidev->open) {
+        enif_select(env, spidev->fd, ERL_NIF_SELECT_STOP, spidev, NULL, am_undefined);
     }
 }
 
