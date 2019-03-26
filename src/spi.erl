@@ -41,7 +41,7 @@ open(Path, Options) ->
 
 %% nif
 open_nif(_Filename, _Options) ->
-    {error, nif_not_loaded}.
+    erlang:nif_error(not_loaded).
 
 
 -spec close(device()) -> ok | {error, term()}.
@@ -50,7 +50,7 @@ close(Device) ->
 
 %% nif
 close_nif(_Device) ->
-    {error, nif_not_loaded}.
+    erlang:nif_error(not_loaded).
 
 
 -spec transfer(device(), [transfer()]) -> {ok, [binary()]} | {error, term()}.
@@ -66,7 +66,7 @@ transfer(Device, Transfers) ->
 
 %% nif
 transfer_nif(_Device, _Transfers) ->
-    {error, nif_not_loaded}.
+    erlang:nif_error(not_loaded).
 
 
 -spec write(device(), binary()) -> ok | {error, term()}.
