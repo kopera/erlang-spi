@@ -19,13 +19,13 @@
 
 
 -spec open(Path) -> {ok, device()} | {error, term()} when
-    Path :: string() | binary().
+    Path :: file:filename_all().
 open(Path) ->
     open(Path, #{}).
 
 
 -spec open(Path, Options) -> {ok, device()} | {error, term()} when
-    Path :: string() | binary(),
+    Path :: file:filename_all(),
     Options :: #{
         mode => 0 | 1 | 2 | 3,
         speed_hz => pos_integer(),
