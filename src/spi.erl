@@ -14,6 +14,10 @@
 ]).
 
 -on_load(init/0).
+-ignore_xref([
+    {?MODULE, nif_path, 0},
+    {?MODULE, nif_path, 2}
+]).
 
 -opaque device() :: reference().
 
