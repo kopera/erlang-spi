@@ -9,7 +9,7 @@ You need to add `spi` as a dependency to your project. If you are using
 
 ```erlang
 {deps, [
-    {spi, {git, "https://github.com/kopera/erlang-spi.git", {branch, "main"}}}
+    {spi, "0.5.0"}
 ]}.
 ```
 
