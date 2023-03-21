@@ -14,20 +14,28 @@
 ]).
 
 -on_load(init/0).
--ignore_xref([
-    {?MODULE, nif_path, 0},
-    {?MODULE, nif_path, 2}
-]).
-
 -opaque device() :: reference().
 
-
+%% @equiv open(Path, #{})
 -spec open(Path) -> {ok, device()} | {error, term()} when
     Path :: file:filename_all().
 open(Path) ->
     open(Path, #{}).
 
-
+%% @doc Open an SPI device given its full path. The path should normally look like
+%% "/dev/spidevX.Y".
+%%
+%% Once a device is open, transfers can be done using {@link transfer/2}.
+%% {@link read/2}, {@link read/3}, {@link write/2} and {@link write/3} are
+%% convenience helpers implemented on top of the {@link transfer/2} function
+%% that ignore the reveived data in case of `write' or write a continuous stream
+%% of 0s in the case of `read'.
+%%
+%% The {@link device(). handle} to the SPI device is automatically closed when the
+%% process that opened it terminates, it can also be closed explicitely
+%% using {@link close/1}.
+%%
+%% Returns a {@link device(). handle} to communite with the SPI device in case of success.
 -spec open(Path, Options) -> {ok, device()} | {error, term()} when
     Path :: file:filename_all(),
     Options :: #{
@@ -42,12 +50,11 @@ open(Path, Options) ->
         bits_per_word => 8
     }, Options)).
 
-
 %% nif
 open_nif(_Filename, _Options) ->
     erlang:nif_error(not_loaded).
 
-
+%% @doc Close a previously open SPI device.
 -spec close(device()) -> ok | {error, term()}.
 close(Device) ->
     close_nif(Device).
@@ -56,7 +63,7 @@ close(Device) ->
 close_nif(_Device) ->
     erlang:nif_error(not_loaded).
 
-
+%% @doc Initiate an SPI transfer.
 -spec transfer(device(), [transfer()]) -> {ok, [binary()]} | {error, term()}.
 -type transfer() :: binary() | {binary(), transfer_options()}.
 -type transfer_options() :: #{
@@ -72,12 +79,12 @@ transfer(Device, Transfers) ->
 transfer_nif(_Device, _Transfers) ->
     erlang:nif_error(not_loaded).
 
-
+%% @equiv write(Device, Data, #{})
 -spec write(device(), binary()) -> ok | {error, term()}.
 write(Device, Data) ->
     write(Device, Data, #{}).
 
-
+%% @doc Initiate a simple write transfer.
 -spec write(device(), binary(), transfer_options()) -> ok | {error, term()}.
 write(Device, Data, Options) ->
     case transfer(Device, [{Data, Options}]) of
@@ -87,11 +94,12 @@ write(Device, Data, Options) ->
             Error
     end.
 
-
+%% @equiv read(Device, Size, #{})
 -spec read(device(), pos_integer()) -> {ok, binary()} | {error, term()}.
 read(Device, Size) ->
     read(Device, Size, #{}).
 
+%% @doc Initiate a simple read transfer.
 -spec read(device(), pos_integer(), transfer_options()) -> {ok, binary()} | {error, term()}.
 read(Device, Size, Options) ->
     case transfer(Device, [{<<0:(Size * 8)>>, Options}]) of
@@ -101,7 +109,6 @@ read(Device, Size, Options) ->
             Error
     end.
 
-
 init() ->
     case nif_path() of
         undefined ->
@@ -109,7 +116,6 @@ init() ->
         Path ->
             ok = erlang:load_nif(Path, 0)
     end.
-
 
 -spec nif_path() -> string() | binary() | undefined.
 nif_path() ->
@@ -126,9 +132,7 @@ nif_path() ->
     end,
     nif_path(os:type(), Priv).
 
-
 nif_path({unix, linux}, Dir) ->
     filename:join([Dir, "spidev_nif"]);
-
 nif_path(_, _Dir) ->
     undefined.
