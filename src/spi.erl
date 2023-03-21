@@ -90,8 +90,7 @@ write(Device, Data, Options) ->
 
 -spec read(device(), pos_integer()) -> {ok, binary()} | {error, term()}.
 read(Device, Size) ->
-    read(Device, Size).
-
+    read(Device, Size, #{}).
 
 -spec read(device(), pos_integer(), transfer_options()) -> {ok, binary()} | {error, term()}.
 read(Device, Size, Options) ->
