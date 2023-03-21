@@ -1,2 +1,5 @@
 /_build
 /_checkouts
+/c_src/_build
+/doc
+/priv/spidev_nif.so
