@@ -1,6 +1,6 @@
 {application, spi, [
     {description, "Erlang SPI Interface"},
-    {vsn, "0.5.0"},
+    {vsn, "git"},
     {applications, [
         kernel,
         stdlib
